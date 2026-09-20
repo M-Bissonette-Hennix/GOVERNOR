@@ -1,12 +1,12 @@
 {
   "name": "Personal State Governor",
-  "short_name": "Governor",
+  "short_name": "GOVERNOR",
   "description": "Local-first state restoration and mastery portfolio governor.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0b0b0c",
-  "theme_color": "#0b0b0c",
+  "background_color": "#e5ddd0",
+  "theme_color": "#26343d",
   "orientation": "portrait-primary",
   "icons": [
     {"src":"./icons/icon-180.png","sizes":"180x180","type":"image/png"},
