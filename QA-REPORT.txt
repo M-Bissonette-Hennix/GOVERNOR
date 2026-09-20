@@ -1,0 +1,58 @@
+GOVERNOR v0.1.0 — RELEASE QA REPORT
+====================================
+
+STATUS
+------
+SOURCE PACKAGE: PASS
+STATIC INTEGRITY: PASS
+JAVASCRIPT PARSE CHECKS: PASS
+PURE CONTROLLER TESTS: PASS
+PROJECT-PATH/PWA ASSET CHECKS: PASS
+AUTOMATED BROWSER RENDER CHECK: ENVIRONMENT-BLOCKED
+DEVICE COMMISSIONING: REQUIRED ON TARGET IPHONE
+
+CHECKS COMPLETED
+----------------
+1. `node --check` passes for:
+   - js/app.js
+   - js/controller.js
+   - js/db.js
+   - js/model.js
+   - sw.js
+
+2. `node tests/smoke.mjs` passes:
+   - controller continuity bands
+   - contact/depth separation
+   - fixed-work context ceiling
+   - unresolved-pressure truthfulness
+   - physical-slot separation
+   - GitHub Pages project-relative assets
+   - service-worker core coverage
+
+3. manifest.webmanifest parses as JSON and uses relative `start_url` and `scope`.
+4. Every manifest icon exists.
+5. Every service-worker core asset exists.
+6. IndexedDB import was made atomic across all application stores and validates row IDs before replacement.
+7. GitHub Pages release contains `.nojekyll` and does not require npm/build tooling.
+
+BROWSER QA LIMITATION
+---------------------
+The available system Chromium is governed by an administrator policy that blocks local/file navigation (`ERR_BLOCKED_BY_ADMINISTRATOR`). A separate Playwright browser binary was not installed and the environment could not download it because external package DNS/download access was unavailable. Therefore an automated rendered-page test could not be completed inside this build environment.
+
+This is why `ACCEPTANCE-TESTS.md` remains part of commissioning: the final authority is the actual GitHub Pages URL installed on the target iPhone. No claim is made that an unexecuted device/browser acceptance test has passed.
+
+RELEASE DOCTRINE CHECK
+----------------------
+PASS — no streaks, XP, confetti, motivational quotes, or accumulated hour debt.
+PASS — Anchor mode exposes one primary transition at a time.
+PASS — medication language never recommends dose/timing changes.
+PASS — one Primary Advance maximum.
+PASS — fixed work counts toward the serious intellectual context ceiling.
+PASS — pressured omissions are not mislabeled as protected.
+PASS — deep work can be protected from rebalancing.
+PASS — GitHub hosts code only; user data is local unless explicitly exported.
+PASS — no backend, analytics, cloud account, push server, or API keys.
+
+COMMISSIONING RULE
+------------------
+Treat v0.1.0 as commissioned only after the applicable checks in ACCEPTANCE-TESTS.md pass on the deployed GitHub Pages site and the installed iPhone Home Screen app.

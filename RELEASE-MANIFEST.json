@@ -1,0 +1,109 @@
+{
+  "product": "GOVERNOR",
+  "version": "0.1.0",
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-20T11:07:58.161984+00:00",
+  "fileCount": 20,
+  "files": [
+    {
+      "path": ".nojekyll",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ACCEPTANCE-TESTS.md",
+      "bytes": 3453,
+      "sha256": "a4686accff03992da700d22ef2dd9e1229eab10426a5acd7658849d9f868928e"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 591,
+      "sha256": "63f8153b0d6c4b2e59d94ca5afb6875b44e6c5cd34f1713c928f1941f639f7c6"
+    },
+    {
+      "path": "DEPLOYMENT.md",
+      "bytes": 2554,
+      "sha256": "ba5630170ffd33078f9705692f0eb3fa9affe37a15709a5f08b37b48fb962e27"
+    },
+    {
+      "path": "QA-REPORT.txt",
+      "bytes": 2608,
+      "sha256": "2bc96abd17b3019d223df06fd5ccc813044fa79394a141f939dcedfba9c98658"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4188,
+      "sha256": "aea69a0227efd2d12637f009fe76aa58476404fe1006758818b134e0a813c3d1"
+    },
+    {
+      "path": "VERSION",
+      "bytes": 6,
+      "sha256": "e9dd8507f4bf0c6f42458e41aea833ad0bd3f6127272335eee9bf4d58541ed67"
+    },
+    {
+      "path": "icons/icon-180.png",
+      "bytes": 648,
+      "sha256": "8662fb8e7472b136da07ea5c9287e05721b80532680db065cff6c152609147a9"
+    },
+    {
+      "path": "icons/icon-192.png",
+      "bytes": 659,
+      "sha256": "42b9ae55729ecbca34c5e1b95669de3ba0b7a829f5f63b5539e47451509e3cad"
+    },
+    {
+      "path": "icons/icon-512.png",
+      "bytes": 2009,
+      "sha256": "c376529e641faf99995c903ea9b0b9b7fa662a6acde7fefb726d599e97cea280"
+    },
+    {
+      "path": "icons/maskable-512.png",
+      "bytes": 1946,
+      "sha256": "3d4779812cbb4ef70f1acdef7766a1fe7dfce9d2aeafecd4e4477578f50c9a77"
+    },
+    {
+      "path": "index.html",
+      "bytes": 1003,
+      "sha256": "677045f82ad36da0de6b425da5c68a15761ebe2f2c6f721529a3567334db5205"
+    },
+    {
+      "path": "js/app.js",
+      "bytes": 31716,
+      "sha256": "4a23a33c3b2b45d902f3840c1783c88391e185bc8e7531e2cbe125eb1cbb96e1"
+    },
+    {
+      "path": "js/controller.js",
+      "bytes": 7897,
+      "sha256": "36a3fd75fc2ff57a6658766f97db359f102d967e5b3f92cfd09c9486f9189cf4"
+    },
+    {
+      "path": "js/db.js",
+      "bytes": 3682,
+      "sha256": "fdd657f3faebd8f99a9ac92052b7e25e56f7fabf4c22ae5cc8cded327fd894b6"
+    },
+    {
+      "path": "js/model.js",
+      "bytes": 5927,
+      "sha256": "74455d8ae0e12d665d79917df9a6c029d5917e9136cd625522cbc2f847adc6fe"
+    },
+    {
+      "path": "manifest.webmanifest",
+      "bytes": 647,
+      "sha256": "f33b7acc7dc65126fa91b7239c5cb083ff82b79230f649ac40db1ba53135f685"
+    },
+    {
+      "path": "styles.css",
+      "bytes": 5895,
+      "sha256": "b35536fddcb9d35672396e17a992e526634dc439d91c0b4e3f65829ec7bb0283"
+    },
+    {
+      "path": "sw.js",
+      "bytes": 1196,
+      "sha256": "ca956cd49cbf512ef815fef49471c8c85b782aa09aade0161764e3358577824c"
+    },
+    {
+      "path": "tests/smoke.mjs",
+      "bytes": 3528,
+      "sha256": "6433ef01c84eafb7d09b66fa652074072584447c03c95599fe76e0f0af171149"
+    }
+  ]
+}
