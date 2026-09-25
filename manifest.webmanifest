@@ -1,7 +1,8 @@
 {
-  "name": "Personal State Governor",
+  "id": "./",
+  "name": "GOVERNOR",
   "short_name": "GOVERNOR",
-  "description": "Local-first state restoration and mastery portfolio governor.",
+  "description": "Local-first state restoration and mastery-trajectory governor.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

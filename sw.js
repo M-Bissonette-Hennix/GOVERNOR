@@ -1,4 +1,4 @@
-const VERSION='governor-v0.1.2';
+const VERSION='governor-v0.2.0';
 const CORE=[
   './','./index.html','./styles.css','./manifest.webmanifest','./js/app.js','./js/db.js','./js/model.js','./js/controller.js',
   './icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png','./icons/maskable-512.png'
