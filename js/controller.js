@@ -10,30 +10,62 @@ function dayDiff(ts){return ts==null?Infinity:Math.max(0,(Date.now()-ts)/DAY)}
 function lastOf(blocks,domainId,predicate){
   return blocks.filter(b=>b.domainId===domainId && b.status==='completed' && predicate(b)).sort((a,b)=>b.endedAt-a.endedAt)[0]||null;
 }
-export function bandFor(days,target){
-  if(!Number.isFinite(days)) return 'pressure';
-  if(days<=target*.65) return 'green';
-  if(days<=target) return 'watch';
-  if(days<=target*1.5) return 'pressure';
+function clampInt(value,min,max,fallback=0){
+  const n=Number(value); if(!Number.isFinite(n)) return fallback;
+  return Math.max(min,Math.min(max,Math.round(n)));
+}
+function rollingDateKeys(days,now=Date.now()){
+  const keys=new Set(); const d=new Date(now); d.setHours(12,0,0,0);
+  for(let i=0;i<days;i++){const x=new Date(d);x.setDate(d.getDate()-i);keys.add(localDateKey(x.getTime()))}
+  return keys;
+}
+function distinctDoseDays(blocks,domainId,days,predicate){
+  const keys=rollingDateKeys(days);
+  return new Set(blocks.filter(b=>b.domainId===domainId&&b.status==='completed'&&predicate(b)&&keys.has(b.dateKey||localDateKey(b.endedAt))).map(b=>b.dateKey||localDateKey(b.endedAt))).size;
+}
+
+// v0.1.2 semantics: a continuity value is literal contact days in a rolling 7-day window.
+// Existing domains keep their numeric value so a user-entered "6" now means the expected 6 days/week.
+export function getContinuityTarget(domain){return clampInt(domain.continuityTarget7 ?? domain.continuityDays,0,7,0)}
+// New explicit depth target is distinct ADVANCE/SURGE days in a rolling 28-day window.
+// Legacy depthDays is converted to an approximately equivalent monthly frequency until the trajectory is next edited.
+export function getDepthTarget(domain){
+  if(domain.depthTarget28!=null) return clampInt(domain.depthTarget28,0,28,0);
+  const legacy=Number(domain.depthDays);
+  if(!Number.isFinite(legacy)||legacy<=0) return 0;
+  return clampInt(Math.round(28/legacy),0,28,0);
+}
+
+export function countBand(count,target){
+  if(target<=0) return 'green';
+  if(count>=target) return 'green';
+  if(count===target-1) return 'watch';
+  if(count>=Math.max(1,Math.ceil(target*.5))) return 'pressure';
   return 'breach';
 }
+
 export function domainCondition(domain,blocks){
   const contact=lastOf(blocks,domain.id,b=>DOSES.includes(b.dose));
   const depth=lastOf(blocks,domain.id,b=>['advance','surge'].includes(b.dose));
   const contactDays=dayDiff(contact?.endedAt);
   const depthDays=dayDiff(depth?.endedAt);
+  const continuityTarget=getContinuityTarget(domain);
+  const depthTarget=getDepthTarget(domain);
+  const contactCount7=distinctDoseDays(blocks,domain.id,7,b=>DOSES.includes(b.dose));
+  const depthCount28=distinctDoseDays(blocks,domain.id,28,b=>['advance','surge'].includes(b.dose));
   return {
-    contact,depth,contactDays,depthDays,
-    continuity:bandFor(contactDays,domain.continuityDays),
-    depthBand:bandFor(depthDays,domain.depthDays)
+    contact,depth,contactDays,depthDays,contactCount7,depthCount28,continuityTarget,depthTarget,
+    continuity:countBand(contactCount7,continuityTarget),
+    depthBand:countBand(depthCount28,depthTarget)
   };
 }
 
 function compareCandidate(a,b,envelope){
-  const ac=a.cond, bc=b.cond;
   const tuples=x=>[
     bandRank[x.cond.continuity], bandRank[x.cond.depthBand], modeRank[x.domain.mode]||0,
     cognitionFit[envelope.cognition]?.[x.domain.ignition]||1,
+    x.cond.continuityTarget-x.cond.contactCount7,
+    x.cond.depthTarget-x.cond.depthCount28,
     x.cond.depthDays===Infinity?999:x.cond.depthDays
   ];
   const A=tuples(a),B=tuples(b);
@@ -63,7 +95,7 @@ export function buildContract(portfolio,day){
   const omitted=active.filter(x=>!scheduled.has(x.domain.id));
   const unresolvedIds=omitted.filter(x=>['pressure','breach'].includes(x.cond.continuity)).map(x=>x.domain.id);
   const protectedIds=omitted.filter(x=>!unresolvedIds.includes(x.domain.id)).map(x=>x.domain.id);
-  return {generatedAt:Date.now(),fixedWork:!!fixedWork,primaryId:primary?.domain.id||null,continuityIds:continuity.map(x=>x.domain.id),physicalId:physicalNeeded?physical.domain.id:null,protectedIds,unresolvedIds};
+  return {cadenceModel:1,generatedAt:Date.now(),fixedWork:!!fixedWork,primaryId:primary?.domain.id||null,continuityIds:continuity.map(x=>x.domain.id),physicalId:physicalNeeded?physical.domain.id:null,protectedIds,unresolvedIds};
 }
 
 export async function generateContract(day){

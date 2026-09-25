@@ -1,6 +1,6 @@
 import {APP_VERSION, ANCHOR_ACTIONS, DOSES, MODES} from './model.js';
 import {initDB,getToday,getAll,get,put,del,getSettings,saveSettings,exportAll,importAll,wipeAll,localDateKey} from './db.js';
-import {computePortfolio,generateContract,nextAnchor,anchorDone,anchorCant,setOperatingState,saveEnvelope,startWakeEpisode,endWakeEpisode,getActiveWake,isNightReentry,startBlock,getCurrentBlock,protectBlock,finishBlock,abandonBlock,closeDay} from './controller.js';
+import {computePortfolio,generateContract,nextAnchor,anchorDone,anchorCant,setOperatingState,saveEnvelope,startWakeEpisode,endWakeEpisode,getActiveWake,isNightReentry,startBlock,getCurrentBlock,protectBlock,finishBlock,abandonBlock,closeDay,getContinuityTarget,getDepthTarget} from './controller.js';
 
 const app=document.querySelector('#app');
 let state={day:null,settings:null,view:'now',portfolio:[],activeWake:null,currentBlock:null,timer:null,modal:null};
@@ -11,6 +11,8 @@ const fmtTime=ts=>new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-di
 const humanAgo=days=>!Number.isFinite(days)?'no recorded dose':days<.8?'today':days<1.8?'yesterday':`${Math.floor(days)}d ago`;
 const bandLabel=b=>({green:'GREEN',watch:'WATCH',pressure:'PRESSURE',breach:'BREACH'}[b]||b.toUpperCase());
 const modeLabel=m=>m.toUpperCase();
+const cadenceText=x=>`${x.cond.contactCount7}/${x.cond.continuityTarget} contact days · rolling 7d`;
+const depthText=x=>x.cond.depthTarget?`${x.cond.depthCount28}/${x.cond.depthTarget} deep days · rolling 28d`:'no depth quota';
 
 function topbar(){
   const ep=state.activeWake;
@@ -23,7 +25,9 @@ function button(label,action,cls=''){return `<button class="btn ${cls}" data-act
 function badge(b){return `<span class="badge ${b}">${bandLabel(b)}</span>`}
 
 async function hydrate(){
-  await initDB(); state.settings=await getSettings(); state.day=await getToday(); state.activeWake=await getActiveWake(state.day); state.currentBlock=await getCurrentBlock(state.day); state.portfolio=await computePortfolio();
+  await initDB(); state.settings=await getSettings(); state.day=await getToday();
+  if(state.day.contract && state.day.contract.cadenceModel!==1){await generateContract(state.day);state.day=await getToday()}
+  state.activeWake=await getActiveWake(state.day); state.currentBlock=await getCurrentBlock(state.day); state.portfolio=await computePortfolio();
   if(!state.activeWake && !state.day.closed){ state.activeWake=await startWakeEpisode(state.day); state.day=await getToday(); }
   if(state.settings?.lastView) state.view=state.settings.lastView;
 }
@@ -100,22 +104,22 @@ function renderEnvelope(){
     ${button('6+ HOURS AVAILABLE','minutes-360',e.minutes===360?'primary':'ghost')}
     <label>Cognitive endurance</label><div class="grid3">${[['fragile','Fragile'],['normal','Normal'],['strong','Strong']].map(([v,l])=>`<button class="choice ${e.cognition===v?'selected':''}" data-cognition="${v}"><strong>${l}</strong><span>${v==='fragile'?'Keep ignition low':v==='normal'?'Ordinary working range':'Deep work plausible'}</span></button>`).join('')}</div>
     <label>Fixed paid-work obligation</label><div class="grid2"><button class="choice ${e.fixedWork===true?'selected':''}" data-work="true"><strong>YES</strong><span>Work is structurally fixed today.</span></button><button class="choice ${e.fixedWork===false?'selected':''}" data-work="false"><strong>NO</strong><span>No fixed work block today.</span></button></div>
-    ${button('GENERATE DAILY CONTRACT','generate','primary')}`);
+    ${button('GENERATE DAILY CONTRACT','generate','primary')}${button('START ANY TRAJECTORY','manual-work','ghost')}`);
 }
 
 function renderContract(){
   if(!state.day.contract) return renderEnvelope();
   const c=state.day.contract; const byId=id=>state.portfolio.find(x=>x.domain.id===id);
   const primary=byId(c.primaryId); const cont=(c.continuityIds||[]).map(byId).filter(Boolean); const physical=byId(c.physicalId); const protectedD=(c.protectedIds||[]).map(byId).filter(Boolean); const unresolved=(c.unresolvedIds||[]).map(byId).filter(Boolean);
+  const cadenceMeta=x=>`${cadenceText(x)} · ${depthText(x)}`;
   return `<div>${c.fixedWork?card(`<div class="eyebrow">FIXED</div><h2 class="hero" style="font-size:24px">Paid Work</h2><p class="sub">External obligation is treated as an anchor, not as proof that every mastery trajectory was trained.</p>${button('BEGIN WORK BLOCK','start-work','ghost')}`):''}
-    ${primary?card(`<div class="eyebrow">PRIMARY ADVANCE</div><h1 class="hero">${esc(primary.domain.name)}</h1><p class="sub">${esc(primary.domain.frontier)}</p><div class="inline">${badge(primary.cond.continuity)}<span class="meta">Depth: ${bandLabel(primary.cond.depthBand)} · last advance ${humanAgo(primary.cond.depthDays)}</span></div>${button('BEGIN PRIMARY BLOCK','start-primary','primary')}${button('OVERRIDE PRIMARY','override-primary','ghost')}`):card(`<div class="eyebrow">PRIMARY</div><h1 class="hero">No primary advance required.</h1><p class="sub">The current portfolio does not require a forced deep block.</p>`)}
-    ${cont.length?card(`<div class="eyebrow">CONTINUITY</div>${cont.map(x=>`<div class="domain"><div class="domain-head"><div class="domain-name">${esc(x.domain.name)}</div>${badge(x.cond.continuity)}</div><div class="meta">${esc(x.domain.bridge?.[0]||'Meaningful contact.')}</div><button class="btn small ghost" data-start-domain="${x.domain.id}" data-dose="maintenance">BEGIN</button></div>`).join('')}`):''}
-    ${physical?card(`<div class="eyebrow">PHYSICAL</div><div class="domain-head"><div class="domain-name">FOUNDATION / 28</div>${badge(physical.cond.continuity)}</div><p class="sub">Governor schedules contact; the exercise app governs what is physically appropriate.</p><button class="btn ghost" data-start-domain="physical" data-dose="maintenance">LOG / BEGIN PHYSICAL CONTACT</button>`):''}
-    ${unresolved.length?card(`<div class="eyebrow">UNRESOLVED PRESSURE</div><div class="callout warn">These trajectories are outside the safe omission band, but adding them would violate the current context ceiling. The app will not disguise overload as protection.</div>${unresolved.map(x=>`<div class="domain"><div class="domain-head"><div class="domain-name">${esc(x.domain.name)}</div>${badge(x.cond.continuity)}</div><div class="meta">Reassess after the primary block or on the next usable day. No missing hours are owed.</div></div>`).join('')}`):''}
-    ${card(`<div class="eyebrow">PROTECTED TODAY</div>${protectedD.length?protectedD.map(x=>`<div class="domain"><div class="domain-head"><div class="domain-name">${esc(x.domain.name)}</div>${badge(x.cond.continuity)}</div><div class="meta">Safe to omit under the current allocation. Last contact: ${humanAgo(x.cond.contactDays)}.</div></div>`).join(''):'<div class="sub">No additional active domains are currently inside a protected omission band.</div>'}`)}
+    ${primary?card(`<div class="eyebrow">PRIMARY ADVANCE</div><h1 class="hero">${esc(primary.domain.name)}</h1><p class="sub">${esc(primary.domain.frontier)}</p><div class="inline">${badge(primary.cond.continuity)}<span class="meta">${cadenceMeta(primary)}</span></div>${button('BEGIN PRIMARY BLOCK','start-primary','primary')}${button('OVERRIDE PRIMARY','override-primary','ghost')}`):card(`<div class="eyebrow">PRIMARY</div><h1 class="hero">No primary advance required.</h1><p class="sub">The current portfolio does not require a forced deep block.</p>`)}
+    ${cont.length?card(`<div class="eyebrow">CONTINUITY</div>${cont.map(x=>`<div class="domain"><div class="domain-head"><div class="domain-name">${esc(x.domain.name)}</div>${badge(x.cond.continuity)}</div><div class="meta">${cadenceMeta(x)}</div><div class="meta">${esc(x.domain.bridge?.[0]||'Meaningful contact.')}</div><button class="btn small ghost" data-start-domain="${x.domain.id}" data-dose="maintenance">BEGIN</button></div>`).join('')}`):''}
+    ${physical?card(`<div class="eyebrow">PHYSICAL</div><div class="domain-head"><div class="domain-name">FOUNDATION / 28</div>${badge(physical.cond.continuity)}</div><p class="sub">${cadenceText(physical)}. Governor schedules contact; the exercise app governs what is physically appropriate.</p><button class="btn ghost" data-start-domain="physical" data-dose="maintenance">LOG / BEGIN PHYSICAL CONTACT</button>`):''}
+    ${unresolved.length?card(`<div class="eyebrow">UNRESOLVED PRESSURE</div><div class="callout warn">These trajectories are below their rolling cadence target, but adding all of them would violate the current context ceiling. They remain manually available; the app will not disguise overload as protection.</div>${unresolved.map(x=>`<div class="domain"><div class="domain-head"><div class="domain-name">${esc(x.domain.name)}</div>${badge(x.cond.continuity)}</div><div class="meta">${cadenceMeta(x)}</div><button class="btn small ghost" data-manual-domain="${x.domain.id}">START ANYWAY</button></div>`).join('')}`):''}
+    ${card(`<div class="eyebrow">PROTECTED TODAY</div><div class="smallprint">Protected means “not required by today’s governor,” never “blocked.” You can start and time any trajectory whenever you choose.</div>${protectedD.length?protectedD.map(x=>`<div class="domain"><div class="domain-head"><div class="domain-name">${esc(x.domain.name)}</div>${badge(x.cond.continuity)}</div><div class="meta">${cadenceMeta(x)} · Last contact: ${humanAgo(x.cond.contactDays)}.</div><button class="btn small ghost" data-manual-domain="${x.domain.id}">START ANYWAY</button></div>`).join(''):'<div class="sub">No additional active domains are currently inside a protected omission band.</div>'}${button('START ANY TRAJECTORY','manual-work','ghost')}`)}
     ${card(`<div class="inline"><button class="btn small ghost" data-action="recalc">RECALCULATE</button><button class="btn small ghost" data-action="state-check">STATE CHANGED</button><button class="btn small ghost" data-action="close-day">CLOSE DAY</button></div>`,'flat')}</div>`;
 }
-
 function renderActiveBlock(){
   const p=state.portfolio.find(x=>x.domain.id===state.currentBlock.domainId); const name=p?.domain.name||state.currentBlock.domainId;
   return card(`<div class="eyebrow">${state.currentBlock.protected?'DEEP · PROTECTED':'ACTIVE BLOCK'}</div><h1 class="hero">${esc(name)}</h1><p class="sub">${esc(p?.domain.frontier||'')}</p><div id="timer" class="timer">00:00</div><div class="meta">Planned dose: ${esc(state.currentBlock.plannedDose)}</div>
@@ -123,23 +127,24 @@ function renderActiveBlock(){
 }
 
 function renderPortfolio(){
-  return `<div>${card(`<div class="eyebrow">PORTFOLIO</div><h1 class="hero">Active trajectories.</h1><p class="sub">Projects belong beneath a small number of durable domains. Adding a new top-level trajectory should have a real capacity cost.</p>${button('ADD TRAJECTORY','add-domain','ghost')}`)}
-  ${state.portfolio.map(x=>card(`<div class="domain-head"><div><div class="domain-name">${esc(x.domain.name)}</div><div class="meta">${modeLabel(x.domain.mode)} · ignition ${esc(x.domain.ignition)}</div></div>${badge(x.cond.continuity)}</div><div class="rule"></div><div class="sub">${esc(x.domain.frontier)}</div><div class="kv"><span>Last contact</span><strong>${humanAgo(x.cond.contactDays)}</strong></div><div class="kv"><span>Depth condition</span><strong>${bandLabel(x.cond.depthBand)}</strong></div><div class="kv"><span>Continuity target</span><strong>${x.domain.continuityDays}d</strong></div><div class="kv"><span>Depth target</span><strong>${x.domain.depthDays}d</strong></div><button class="btn small ghost" data-edit-domain="${x.domain.id}">EDIT</button>`)).join('')}</div>`;
+  return `<div>${card(`<div class="eyebrow">PORTFOLIO</div><h1 class="hero">Active trajectories.</h1><p class="sub">Continuity is now a literal weekly cadence: distinct contact days in the rolling last 7 days. Depth is distinct ADVANCE/SURGE days in the rolling last 28 days.</p>${button('START ANY TRAJECTORY','manual-work','primary')}${button('ADD TRAJECTORY','add-domain','ghost')}`)}
+  ${state.portfolio.map(x=>card(`<div class="domain-head"><div><div class="domain-name">${esc(x.domain.name)}</div><div class="meta">${modeLabel(x.domain.mode)} · ignition ${esc(x.domain.ignition)}</div></div>${badge(x.cond.continuity)}</div><div class="rule"></div><div class="sub">${esc(x.domain.frontier)}</div><div class="kv"><span>Continuity</span><strong>${x.cond.contactCount7} / ${x.cond.continuityTarget} days</strong></div><div class="kv"><span>Continuity window</span><strong>rolling 7 days</strong></div><div class="kv"><span>Depth</span><strong>${x.cond.depthCount28} / ${x.cond.depthTarget} days</strong></div><div class="kv"><span>Depth window</span><strong>rolling 28 days</strong></div><div class="kv"><span>Last contact</span><strong>${humanAgo(x.cond.contactDays)}</strong></div><div class="kv"><span>Last advance</span><strong>${humanAgo(x.cond.depthDays)}</strong></div><div class="inline"><button class="btn small primary" data-manual-domain="${x.domain.id}">START</button><button class="btn small ghost" data-edit-domain="${x.domain.id}">EDIT</button></div>`)).join('')}</div>`;
 }
-
 function summarize(days){
   const cutoff=Date.now()-days*86400000; const blocks=window.__blocks||[];
   return state.portfolio.map(x=>{
     const bs=blocks.filter(b=>b.domainId===x.domain.id&&b.status==='completed'&&b.endedAt>=cutoff);
-    return {name:x.domain.name,condition:x.cond.continuity,contact:bs.length,advance:bs.filter(b=>['advance','surge'].includes(b.dose)).length,surge:bs.filter(b=>b.dose==='surge').length,minutes:bs.reduce((s,b)=>s+(b.minutes||0),0)};
+    const contactDays=new Set(bs.map(b=>b.dateKey||localDateKey(b.endedAt))).size;
+    const deepDays=new Set(bs.filter(b=>['advance','surge'].includes(b.dose)).map(b=>b.dateKey||localDateKey(b.endedAt))).size;
+    return {name:x.domain.name,condition:x.cond.continuity,contactDays,deepDays,surge:bs.filter(b=>b.dose==='surge').length,minutes:bs.reduce((sum,b)=>sum+(b.minutes||0),0),continuityTarget:x.cond.continuityTarget,depthTarget:x.cond.depthTarget};
   });
 }
 function renderReview(){
   const rows7=summarize(7), rows28=summarize(28);
-  const table=rows=>`<div class="table-wrap"><table class="table"><thead><tr><th>Domain</th><th>Condition</th><th>Doses</th><th>Advance</th><th>Surge</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${bandLabel(r.condition)}</td><td>${r.contact}</td><td>${r.advance}</td><td>${r.surge}</td></tr>`).join('')}</tbody></table></div>`;
-  return `${card(`<div class="eyebrow">7 DAYS</div><h1 class="hero">Continuity first.</h1><p class="sub">Counts are factual diagnostics, not quotas or debt.</p>${table(rows7)}`)}${card(`<div class="eyebrow">28 DAYS</div><h1 class="hero">Trajectory evidence.</h1><p class="sub">A contact dose is not reported as advancement. Missed hours are never accumulated.</p>${table(rows28)}`)}`;
+  const table7=rows=>`<div class="table-wrap"><table class="table"><thead><tr><th>Domain</th><th>Condition</th><th>Contact days</th><th>Weekly target</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${bandLabel(r.condition)}</td><td>${r.contactDays}</td><td>${r.continuityTarget}</td></tr>`).join('')}</tbody></table></div>`;
+  const table28=rows=>`<div class="table-wrap"><table class="table"><thead><tr><th>Domain</th><th>Deep days</th><th>28d target</th><th>Minutes</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.deepDays}</td><td>${r.depthTarget}</td><td>${r.minutes}</td></tr>`).join('')}</tbody></table></div>`;
+  return `${card(`<div class="eyebrow">7 DAYS</div><h1 class="hero">Cadence evidence.</h1><p class="sub">A contact day counts once regardless of how many blocks you do that day. The window rolls daily.</p>${table7(rows7)}`)}${card(`<div class="eyebrow">28 DAYS</div><h1 class="hero">Depth evidence.</h1><p class="sub">Only ADVANCE or SURGE marks a deep day. CONTACT and MAINTENANCE preserve continuity but do not satisfy depth.</p>${table28(rows28)}`)}`;
 }
-
 function renderSystem(){
   return `${card(`<div class="eyebrow">SYSTEM</div><h1 class="hero">Local-first instrument.</h1><div class="kv"><span>Version</span><strong>${APP_VERSION}</strong></div><div class="kv"><span>Storage</span><strong id="storage-status">checking…</strong></div>${button('REQUEST PERSISTENT STORAGE','persist','ghost')}`)}
   ${card(`<div class="eyebrow">WAKE EPISODE</div>${state.activeWake?`<div class="sub">Wake ${state.activeWake.index} began ${fmtTime(state.activeWake.startedAt)}.</div>${button('END CURRENT WAKE EPISODE','end-wake','ghost')}`:`<div class="sub">No wake episode is active.</div>${button('START WAKE EPISODE','start-wake','primary')}`}`)}
@@ -150,17 +155,33 @@ function renderSystem(){
 }
 
 function domainModal(domain=null){
-  const d=domain||{id:'',name:'',mode:'build',frontier:'',continuityDays:4,depthDays:8,ignition:'medium',immersion:'high',bridge:[''],active:true,notes:''};
+  const d=domain||{id:'',name:'',mode:'build',frontier:'',continuityTarget7:3,depthTarget28:4,ignition:'medium',immersion:'high',bridge:[''],active:true,notes:''};
+  const cont=getContinuityTarget(d);
+  const depth=getDepthTarget(d);
   return `<div class="modal-backdrop"><div class="modal"><div class="eyebrow">${domain?'EDIT':'ADMISSION CONTROL'}</div><h2 class="hero" style="font-size:26px">${domain?'Trajectory settings':'Add a top-level trajectory'}</h2>${!domain?`<div class="callout warn">Before adding this, ask whether it is actually a project beneath an existing domain. A new trajectory consumes portfolio capacity.</div>`:''}
     <label>Name</label><input id="m-name" value="${esc(d.name)}" />
     <label>Current frontier</label><textarea id="m-frontier">${esc(d.frontier)}</textarea>
     <div class="form-row"><div><label>Strategic mode</label><select id="m-mode">${MODES.map(m=>`<option value="${m}" ${d.mode===m?'selected':''}>${m.toUpperCase()}</option>`).join('')}</select></div><div><label>Ignition cost</label><select id="m-ignition">${['low','medium','high'].map(v=>`<option ${d.ignition===v?'selected':''}>${v}</option>`).join('')}</select></div></div>
-    <div class="form-row"><div><label>Continuity target (days)</label><input id="m-cont" type="number" min="1" max="90" value="${d.continuityDays}" /></div><div><label>Depth target (days)</label><input id="m-depth" type="number" min="1" max="180" value="${d.depthDays}" /></div></div>
+    <label>Continuity target — contact days per rolling 7 days</label><input id="m-cont" type="number" min="0" max="7" inputmode="numeric" value="${cont}" />
+    <div class="field-help"><strong>What it means:</strong> the number of distinct calendar days in the last 7 on which any completed CONTACT, MAINTENANCE, ADVANCE, or SURGE block should exist. Example: <b>6</b> means six contact days per rolling week; once six are present, one day may be safely protected. Multiple blocks on one day still count as one contact day. Set 0 for no continuity quota.</div>
+    <label>Depth target — ADVANCE/SURGE days per rolling 28 days</label><input id="m-depth" type="number" min="0" max="28" inputmode="numeric" value="${depth}" />
+    <div class="field-help"><strong>What it means:</strong> the number of distinct days in the last 28 containing at least one completed ADVANCE or SURGE block. CONTACT and MAINTENANCE do not satisfy this target. Example: <b>4</b> means roughly four substantive developmental days per rolling 28 days. Set 0 for no depth quota.</div>
+    <div class="callout">These are rolling targets, not fixed weekdays and not owed hours. Falling below target raises scheduling pressure; exceeding target never blocks voluntary work.</div>
     <label>Bridge actions — one per line</label><textarea id="m-bridge">${esc((d.bridge||[]).join('\n'))}</textarea>
     ${button('SAVE TRAJECTORY','save-domain','primary')} ${domain?button('DELETE TRAJECTORY','delete-domain','danger'):''} ${button('CANCEL','close-modal','ghost')}
     <input type="hidden" id="m-id" value="${esc(d.id)}" /></div></div>`;
 }
 
+function manualWorkModal(){
+  const opts=state.portfolio.filter(x=>x.domain.active);
+  return `<div class="modal-backdrop"><div class="modal"><div class="eyebrow">MANUAL WORK</div><h2 class="hero" style="font-size:26px">Start any trajectory.</h2><p class="sub">Governor status is advisory. GREEN and PROTECTED never disable voluntary work or timing.</p>${opts.map(x=>`<button class="btn" data-manual-domain="${x.domain.id}"><span class="manual-row"><strong>${esc(x.domain.name)}</strong><span>${x.cond.contactCount7}/${x.cond.continuityTarget} · ${bandLabel(x.cond.continuity)}</span></span></button>`).join('')}${button('CANCEL','close-modal','ghost')}</div></div>`;
+}
+
+function manualDoseModal(domainId){
+  const x=state.portfolio.find(p=>p.domain.id===domainId); if(!x)return '';
+  const defs={contact:'Re-establish contact with the trajectory.',maintenance:'Enough real work to preserve continuity.',advance:'Material developmental progress; counts toward depth.',surge:'Sustained deep advancement; counts toward depth.'};
+  return `<div class="modal-backdrop"><div class="modal"><div class="eyebrow">${esc(x.domain.name)}</div><h2 class="hero" style="font-size:26px">What are you starting?</h2><p class="sub">Choose the intended dose. You can classify the actual dose again when you finish.</p><div class="grid2">${DOSES.map(d=>`<button class="choice" data-manual-dose="${d}" data-manual-dose-domain="${domainId}"><strong>${d.toUpperCase()}</strong><span>${defs[d]}</span></button>`).join('')}</div>${button('BACK','manual-work','ghost')}${button('CANCEL','close-modal','ghost')}</div></div>`;
+}
 function finishModal(){return `<div class="modal-backdrop"><div class="modal"><div class="eyebrow">FINISH BLOCK</div><h2 class="hero" style="font-size:26px">What did this become?</h2><p class="sub">Classify the actual dose. Contact is not advancement.</p><div class="grid2">${DOSES.map(d=>`<button class="choice" data-finish-dose="${d}"><strong>${d.toUpperCase()}</strong><span>${d==='contact'?'Re-established the mental object':d==='maintenance'?'Preserved continuity':d==='advance'?'Material developmental progress':'Sustained deep advancement'}</span></button>`).join('')}</div><label>Optional note</label><textarea id="finish-note" placeholder="Only if context matters."></textarea>${button('CANCEL','close-modal','ghost')}</div></div>`}
 
 function overrideModal(){return `<div class="modal-backdrop"><div class="modal"><div class="eyebrow">OVERRIDE</div><h2 class="hero" style="font-size:26px">Choose the better reality.</h2><p class="sub">Manual judgment is legitimate. Pick another active trajectory; no justification is required.</p>${state.portfolio.filter(x=>x.domain.active&&!['dormant','restorative'].includes(x.domain.mode)).map(x=>`<button class="btn" data-override-domain="${x.domain.id}">${esc(x.domain.name)} <span class="meta">· ${bandLabel(x.cond.continuity)}</span></button>`).join('')}${button('CANCEL','close-modal','ghost')}</div></div>`}
@@ -193,6 +214,8 @@ async function bindDataButtons(){
   document.querySelectorAll('[data-work]').forEach(b=>b.onclick=async()=>{await saveEnvelope(state.day,{fixedWork:b.dataset.work==='true'});await refresh()});
   document.querySelectorAll('[data-start-domain]').forEach(b=>b.onclick=async()=>{await startBlock(state.day,b.dataset.startDomain,b.dataset.dose||'maintenance','contract');await refresh()});
   document.querySelectorAll('[data-edit-domain]').forEach(b=>b.onclick=async()=>{const d=await get('domains',b.dataset.editDomain);state.modal=domainModal(d);render()});
+  document.querySelectorAll('[data-manual-domain]').forEach(b=>b.onclick=()=>{state.modal=manualDoseModal(b.dataset.manualDomain);render()});
+  document.querySelectorAll('[data-manual-dose]').forEach(b=>b.onclick=async()=>{const domainId=b.dataset.manualDoseDomain;const dose=b.dataset.manualDose;state.modal=null;await startBlock(state.day,domainId,dose,'manual');await refresh()});
   document.querySelectorAll('[data-finish-dose]').forEach(b=>b.onclick=async()=>{const note=document.querySelector('#finish-note')?.value||'';state.modal=null;await finishBlock(state.day,state.currentBlock,b.dataset.finishDose,note);await refresh()});
   document.querySelectorAll('[data-override-domain]').forEach(b=>b.onclick=async()=>{state.modal=null;await startBlock(state.day,b.dataset.overrideDomain,'advance','override');await refresh()});
   document.querySelectorAll('[data-already-domain]').forEach(b=>b.onclick=async()=>{state.modal=null;await startBlock(state.day,b.dataset.alreadyDomain,'advance','already-working');state.currentBlock=await getCurrentBlock(state.day);await protectBlock(state.day,state.currentBlock);await refresh()});
@@ -220,6 +243,7 @@ async function handleAction(a){
   if(a==='finish'){state.modal=finishModal();return render()}
   if(a==='abandon'){await abandonBlock(state.day,state.currentBlock);return refresh()}
   if(a==='override-primary'){state.modal=overrideModal();return render()}
+  if(a==='manual-work'){state.modal=manualWorkModal();return render()}
   if(a==='close-modal'){state.modal=null;return render()}
   if(a==='close-day'){state.modal=closeDayModal();return render()}
   if(a==='confirm-close'){const note=document.querySelector('#close-note')?.value||'';state.modal=null;await closeDay(state.day,note);return refresh()}
@@ -245,7 +269,9 @@ function nightReentry(ep){ return isNightReentry(ep) && !ep?.overrideNight && !i
 
 async function saveDomainFromModal(){
   const id=document.querySelector('#m-id').value.trim()||`domain-${Date.now()}`; const existing=await get('domains',id);
-  const d={...(existing||{}),id,name:document.querySelector('#m-name').value.trim()||'Untitled',frontier:document.querySelector('#m-frontier').value.trim(),mode:document.querySelector('#m-mode').value,ignition:document.querySelector('#m-ignition').value,immersion:existing?.immersion||'high',continuityDays:Math.max(1,+document.querySelector('#m-cont').value||4),depthDays:Math.max(1,+document.querySelector('#m-depth').value||8),bridge:document.querySelector('#m-bridge').value.split('\n').map(x=>x.trim()).filter(Boolean),active:true,notes:existing?.notes||'',createdAt:existing?.createdAt||Date.now(),updatedAt:Date.now()};
+  const continuityTarget7=Math.max(0,Math.min(7,Math.round(+document.querySelector('#m-cont').value||0)));
+  const depthTarget28=Math.max(0,Math.min(28,Math.round(+document.querySelector('#m-depth').value||0)));
+  const d={...(existing||{}),id,name:document.querySelector('#m-name').value.trim()||'Untitled',frontier:document.querySelector('#m-frontier').value.trim(),mode:document.querySelector('#m-mode').value,ignition:document.querySelector('#m-ignition').value,immersion:existing?.immersion||'high',continuityTarget7,depthTarget28,continuityDays:continuityTarget7,bridge:document.querySelector('#m-bridge').value.split('\n').map(x=>x.trim()).filter(Boolean),active:true,notes:existing?.notes||'',createdAt:existing?.createdAt||Date.now(),updatedAt:Date.now()};
   await put('domains',d);state.modal=null;await refresh();
 }
 async function deleteDomainFromModal(){const id=document.querySelector('#m-id').value;if(!id)return;if(confirm('Delete this trajectory configuration? Historical blocks will remain in the local database.')){await del('domains',id);state.modal=null;await refresh()}}
